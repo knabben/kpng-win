@@ -3,43 +3,41 @@ package winkernel
 import (
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/knabben/kpng-win/pkg/proxy"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
-	netutils "k8s.io/utils/net"
+	"sigs.k8s.io/kpng/api/localnetv1"
 )
 
 // returns a new proxy.ServicePort which abstracts a serviceInfo
-func (proxier *Proxier) newServiceInfo(port *v1.ServicePort, service *v1.Service, baseInfo *proxy.BaseServiceInfo) proxy.ServicePort {
+func (proxier *Proxier) newServiceInfo(port *localnetv1.PortMapping, service *localnetv1.Service, baseInfo *proxy.BaseServiceInfo) proxy.ServicePort {
 	info := &serviceInfo{BaseServiceInfo: baseInfo}
 	preserveDIP := service.Annotations["preserve-destination"] == "true"
-	localTrafficDSR := service.Spec.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeLocal
+	//localTrafficDSR := service.ExternalTrafficPolicy == v1.ServiceExternalTrafficPolicyTypeLocal
 	err := hcn.DSRSupported()
 	if err != nil {
 		preserveDIP = false
-		localTrafficDSR = false
+		//localTrafficDSR = false
 	}
 	// targetPort is zero if it is specified as a name in port.TargetPort.
 	// Its real value would be got later from endpoints.
-	targetPort := 0
-	if port.TargetPort.Type == intstr.Int {
-		targetPort = port.TargetPort.IntValue()
-	}
+	//targetPort := 0
+	//if port.TargetPort.Type == intstr.Int {
+	//	targetPort = port.TargetPort.IntValue()
+	//}
 
 	info.preserveDIP = preserveDIP
-	info.targetPort = targetPort
+	info.targetPort = int(port.TargetPort)
 	info.hns = proxier.hns
-	info.localTrafficDSR = localTrafficDSR
+	//info.localTrafficDSR = localTrafficDSR
 
-	for _, eip := range service.Spec.ExternalIPs {
-		info.externalIPs = append(info.externalIPs, &externalIPInfo{ip: eip})
-	}
-
-	for _, ingress := range service.Status.LoadBalancer.Ingress {
-		if netutils.ParseIPSloppy(ingress.IP) != nil {
-			info.loadBalancerIngressIPs = append(info.loadBalancerIngressIPs, &loadBalancerIngressInfo{ip: ingress.IP})
-		}
-	}
+	//for _, eip := range service.Spec.ExternalIPs {
+	//	info.externalIPs = append(info.externalIPs, &externalIPInfo{ip: eip})
+	//}
+	//
+	//for _, ingress := range service.Status.LoadBalancer.Ingress {
+	//	if netutils.ParseIPSloppy(ingress.IP) != nil {
+	//		info.loadBalancerIngressIPs = append(info.loadBalancerIngressIPs, &loadBalancerIngressInfo{ip: ingress.IP})
+	//	}
+	//}
 	return info
 }
 

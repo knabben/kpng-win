@@ -238,9 +238,9 @@ func (proxier *Proxier) OnServiceAdd(service *localnetv1.Service) {
 // OnServiceUpdate is called whenever modification of an existing
 // service object is observed.
 func (proxier *Proxier) OnServiceUpdate(oldService, service *localnetv1.Service) {
-	//if proxier.serviceChanges.Update(oldService, service) && proxier.isInitialized() {
-	//	proxier.Sync()
-	//}
+	if proxier.serviceChanges.Update(oldService, service) && proxier.isInitialized() {
+		proxier.Sync()
+	}
 }
 
 // OnServiceDelete is called whenever deletion of an existing service
@@ -267,6 +267,10 @@ func (proxier *Proxier) setInitialized(value bool) {
 		initialized = 1
 	}
 	atomic.StoreInt32(&proxier.initialized, initialized)
+}
+
+func (proxier *Proxier) isInitialized() bool {
+	return atomic.LoadInt32(&proxier.initialized) > 0
 }
 
 // This is where all of the hns save/restore calls happen.

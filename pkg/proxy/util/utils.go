@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"sigs.k8s.io/kpng/api/localnetv1"
 	"strconv"
 	"strings"
 
@@ -351,28 +352,28 @@ func NewFilteredDialContext(wrapped DialContext, resolv Resolver, opts *Filtered
 }
 
 // GetClusterIPByFamily returns a service clusterip by family
-func GetClusterIPByFamily(ipFamily v1.IPFamily, service *v1.Service) string {
+func GetClusterIPByFamily(ipFamily v1.IPFamily, service *localnetv1.Service) string {
 	// allowing skew
-	if len(service.Spec.IPFamilies) == 0 {
-		if len(service.Spec.ClusterIP) == 0 || service.Spec.ClusterIP == v1.ClusterIPNone {
-			return ""
-		}
+	//if len(service.IPFamilies) == 0 {
+	//	if len(service.Spec.ClusterIP) == 0 || service.Spec.ClusterIP == v1.ClusterIPNone {
+	//		return ""
+	//	}
+	//
+	//	IsIPv6Family := (ipFamily == v1.IPv6Protocol)
+	//	if IsIPv6Family == netutils.IsIPv6String(service.Spec.ClusterIP) {
+	//		return service.Spec.ClusterIP
+	//	}
+	//
+	//	return ""
+	//}
 
-		IsIPv6Family := (ipFamily == v1.IPv6Protocol)
-		if IsIPv6Family == netutils.IsIPv6String(service.Spec.ClusterIP) {
-			return service.Spec.ClusterIP
-		}
-
-		return ""
-	}
-
-	for idx, family := range service.Spec.IPFamilies {
-		if family == ipFamily {
-			if idx < len(service.Spec.ClusterIPs) {
-				return service.Spec.ClusterIPs[idx]
-			}
-		}
-	}
+	//for idx, family := range service.Spec.IPFamilies {
+	//	if family == ipFamily {
+	//		if idx < len(service.Spec.ClusterIPs) {
+	//			return service.Spec.ClusterIPs[idx]
+	//		}
+	//	}
+	//}
 
 	return ""
 }

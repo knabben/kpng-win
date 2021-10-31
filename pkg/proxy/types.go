@@ -16,7 +16,7 @@ import (
 type ServicePortName struct {
 	types.NamespacedName
 	Port     string
-	Protocol v1.Protocol
+	Protocol localnetv1.Protocol
 }
 
 func (spn ServicePortName) String() string {
@@ -91,7 +91,7 @@ type ServicePort interface {
 	// LoadBalancerIPStrings returns service LoadBalancerIPs as a string array.
 	LoadBalancerIPStrings() []string
 	// GetProtocol returns service protocol.
-	Protocol() v1.Protocol
+	Protocol() localnetv1.Protocol
 	// LoadBalancerSourceRanges returns service LoadBalancerSourceRanges if present empty array if not
 	LoadBalancerSourceRanges() []string
 	// GetHealthCheckNodePort returns service health check node port if present.  If return 0, it means not present.

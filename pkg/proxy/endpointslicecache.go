@@ -19,6 +19,7 @@ package proxy
 import (
 	"fmt"
 	"reflect"
+	"sigs.k8s.io/kpng/api/localnetv1"
 	"sort"
 	"strings"
 	"sync"
@@ -247,7 +248,7 @@ func (cache *EndpointSliceCache) endpointInfoByServicePort(serviceNN types.Names
 			svcPortName := ServicePortName{
 				NamespacedName: serviceNN,
 				Port:           *port.Name,
-				Protocol:       *port.Protocol,
+				Protocol:       localnetv1.Protocol_TCP,
 			}
 
 			endpointInfoBySP[svcPortName] = cache.addEndpoints(serviceNN, int(*port.Port), endpointInfoBySP[svcPortName], sliceInfo.Endpoints)
