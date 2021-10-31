@@ -15,3 +15,8 @@ MODE=userspace make
 ```
 
 Check kpng core [here](https://github.com/kubernetes-sigs/kpng).
+
+### CNIs compatibility
+
+* **Userspace** - Antrea <1.2
+* **Kernelspace** - Calico Project, Flannel
