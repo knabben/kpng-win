@@ -1,8 +1,8 @@
 package userspace
 
 import (
-	"net"
 	v1 "k8s.io/api/core/v1"
+	"net"
 	"sigs.k8s.io/kpng/client"
 )
 

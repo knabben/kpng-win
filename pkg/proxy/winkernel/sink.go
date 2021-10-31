@@ -2,7 +2,11 @@ package winkernel
 
 import (
 	"fmt"
+	"github.com/knabben/kpng-win/pkg/proxy"
+	"log"
+	"net"
 	"sync"
+	"time"
 
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/kpng/api/localnetv1"
@@ -20,9 +24,12 @@ import (
 	//"sigs.k8s.io/kpng/client/localsink/filterreset"
 )
 
-var wg = sync.WaitGroup{}
-var hostname string
-var _ decoder.Interface = &Backend{}
+var (
+	wg = sync.WaitGroup{}
+	hostname string
+	_ decoder.Interface = &Backend{}
+	proxier proxy.Provider = &Proxier{}
+)
 
 type Backend struct {
 	localsink.Config
@@ -40,6 +47,22 @@ func (s *Backend) BindFlags(flags *pflag.FlagSet) {
 }
 
 func (s *Backend) Setup() {
+	var err error
+	var ip = net.IP{}
+	proxier, err = NewProxier(
+		time.Second * 2, // syncPeriod time.Duration,
+		time.Second * 2,  // minSyncPeriod time.Duration,
+		false, // masqueradeAll bool,
+		0, // masqueradeBit int,
+		"", // clusterCIDR string,
+		"",  // hostname string,
+		ip, // nodeIP net.IP,// 	recorder events.EventRecorder,
+		proxy.KubeProxyWinkernelConfiguration{},  // config proxy.KubeProxyWinkernelConfiguration,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// start and create service vs. endpoints struct
 
 	//hostname = s.NodeName
@@ -69,6 +92,7 @@ func (s *Backend) SetService(svc *localnetv1.Service) {
 	//for _, impl := range IptablesImpl {
 	//	impl.serviceChanges.Update(svc)
 	//}
+	//proxier.OnServiceUpdate(nil, service)
 }
 
 func (s *Backend) DeleteService(namespace, name string) {
@@ -76,6 +100,8 @@ func (s *Backend) DeleteService(namespace, name string) {
 	//for _, impl := range IptablesImpl {
 	//	impl.serviceChanges.Delete(namespace, name)
 	//}
+	//proxier.OnServiceUpdate(service, nil)
+
 }
 
 func (s *Backend) SetEndpoint(namespace, serviceName, key string, endpoint *localnetv1.Endpoint) {

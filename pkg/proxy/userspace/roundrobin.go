@@ -30,7 +30,7 @@ var _ LoadBalancer = &LoadBalancerRR{}
 type balancerState struct {
 	endpoints []string // a list of "ip:port" style strings
 	index     int      // current index into endpoints
-	affinity  affinityPolicy
+	affinity affinityPolicy
 }
 
 type affinityState struct {

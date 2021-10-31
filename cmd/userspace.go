@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/knabben/kpng-win/pkg/userspace"
+	"github.com/knabben/kpng-win/pkg/proxy/userspace"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/kpng/client/localsink"
 )
@@ -9,7 +9,7 @@ import (
 func UserspaceCommand(run func(sink localsink.Sink) error) *cobra.Command {
 	return &cobra.Command{
 		Use: "userspace",
-		Short:"Windows Userspace Mode",
+		Short:"WARNING - WIP - Windows Userspace Mode",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			backend := userspace.NewBackend()
 			return run(backend.Sink())

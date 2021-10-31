@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/knabben/kpng-win/pkg/winkernel"
+	"github.com/knabben/kpng-win/pkg/proxy/winkernel"
 	"github.com/spf13/cobra"
 	"sigs.k8s.io/kpng/client/localsink"
 )
