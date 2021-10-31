@@ -8,6 +8,7 @@ import (
 )
 
 var (
+	server string
 	rootCmd = &cobra.Command{
 		Use:   "kpng",
 		Short: "Nothing here, choose a backend",
@@ -22,6 +23,10 @@ func LocalCmds(run func(sink localsink.Sink) error) (cmds []*cobra.Command) {
 	}
 }
 
+func init() {
+	rootCmd.PersistentFlags().StringVar(&server, "server", "127.0.0.1:12090", "KPNG GRPC Server")
+}
+
 func Execute() error {
 	ctx := context.Background()
 	flags := rootCmd.PersistentFlags()
@@ -29,6 +34,7 @@ func Execute() error {
 	rootCmd.AddCommand(LocalCmds(func(sink localsink.Sink) (err error) {
 		job := api2local.New(sink)
 		job.BindFlags(flags)
+		job.Watch.Server = server
 		job.Run(ctx)
 		return
 	})...)
