@@ -48,7 +48,7 @@ func (s *Backend) BindFlags(flags *pflag.FlagSet) {
 
 func (s *Backend) Setup() {
 	var err error
-	var ip = net.IP{}
+	ip, _, err := net.ParseCIDR("192.168.0.12/32")
 	proxier, err = NewProxier(
 		time.Second * 2, // syncPeriod time.Duration,
 		time.Second * 2,  // minSyncPeriod time.Duration,
@@ -57,23 +57,14 @@ func (s *Backend) Setup() {
 		"", // clusterCIDR string,
 		"",  // hostname string,
 		ip, // nodeIP net.IP,// 	recorder events.EventRecorder,
-		proxy.KubeProxyWinkernelConfiguration{},  // config proxy.KubeProxyWinkernelConfiguration,
+		proxy.KubeProxyWinkernelConfiguration{
+			NetworkName: "flannel.4096",
+			SourceVip: "192.168.0.12",
+		},  // config proxy.KubeProxyWinkernelConfiguration,
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// start and create service vs. endpoints struct
-
-	//hostname = s.NodeName
-	//IptablesImpl = make(map[v1.IPFamily]*iptables)
-	//for _, protocol := range []v1.IPFamily{v1.IPv4Protocol, v1.IPv6Protocol} {
-	//	iptable := NewIptables()
-	//	iptable.iptInterface = util.NewIPTableExec(exec.New(), util.Protocol(protocol))
-	//	iptable.serviceChanges = NewServiceChangeTracker(newServiceInfo, protocol, iptable.recorder)
-	//	iptable.endpointsChanges = NewEndpointChangeTracker(hostname, protocol, iptable.recorder)
-	//	IptablesImpl[protocol] = iptable
-	//}1
 }
 
 func (s *Backend) Reset() { /* noop, we're wrapped in filterreset */ }

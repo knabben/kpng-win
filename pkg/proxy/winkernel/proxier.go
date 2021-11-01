@@ -105,6 +105,7 @@ func NewProxier(
 
 	klog.V(3).InfoS("Cleaning up old HNS policy lists")
 	deleteAllHnsLoadBalancerPolicy()
+	fmt.Println(hcn.ListNetworks())
 
 	// Get HNS network information
 	hnsNetworkInfo, err := getNetworkInfo(hns, hnsNetworkName)
@@ -115,7 +116,7 @@ func NewProxier(
 	// Network could have been detected before Remote Subnet Routes are applied or ManagementIP is updated
 	// Sleep and update the network to include new information
 	if isOverlay(hnsNetworkInfo) {
-		time.Sleep(10 * time.Second)
+		//time.Sleep(10 * time.Second)
 		hnsNetworkInfo, err = hns.getNetworkByName(hnsNetworkName)
 		if err != nil {
 			return nil, fmt.Errorf("could not find HNS network %s", hnsNetworkName)
@@ -167,6 +168,7 @@ func NewProxier(
 				}
 			}
 		}
+
 		if len(hostMac) == 0 {
 			return nil, fmt.Errorf("could not find host mac address for %s", nodeIP)
 		}
