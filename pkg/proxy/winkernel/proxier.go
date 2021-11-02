@@ -31,8 +31,10 @@ type Proxier struct {
 	// changes are accumulated, i.e. previous is state from before all of them,
 	// current is state after applying all of those.
 	endpointsChanges  *proxy.EndpointChangeTracker
-	serviceChanges    *proxy.ServiceChangeTracker
 	endPointsRefCount endPointsReferenceCountMap
+
+	serviceChanges *proxy.ServiceChangeTracker
+	servicesCache  map[string]*localnetv1.Service
 
 	mu           sync.Mutex // protects the following fields
 	serviceMap   proxy.ServiceMap
@@ -62,16 +64,17 @@ type Proxier struct {
 	// precomputing some number of those and cache for future reuse.
 	precomputedProbabilities []string
 	//
-	hns               HostNetworkService
-	network           hnsNetworkInfo
+	hns       HostNetworkService
+	network   hnsNetworkInfo
 	sourceVip string
 	hostMac   string
 	isDSR     bool
 	//supportedFeatures hcn.SupportedFeatures
 }
 
-// Proxier implements proxy.Provider
-var _ proxy.Provider = &Proxier{}
+func (proxier *Proxier) GetServiceChangeTracker() *proxy.ServiceChangeTracker {
+	return proxier.serviceChanges
+}
 
 // NewProxier returns a new Proxier
 func NewProxier(
@@ -176,24 +179,24 @@ func NewProxier(
 
 	isIPv6 := netutils.IsIPv6(nodeIP)
 	proxier := &Proxier{
-		endPointsRefCount:   make(endPointsReferenceCountMap),
-		serviceMap:          make(proxy.ServiceMap),
-		endpointsMap:        make(proxy.EndpointsMap),
-		masqueradeAll:       masqueradeAll,
-		masqueradeMark:      masqueradeMark,
-		clusterCIDR:         clusterCIDR,
-		hostname:            hostname,
-		nodeIP:              nodeIP,
+		endPointsRefCount: make(endPointsReferenceCountMap),
+		serviceMap:        make(proxy.ServiceMap),
+		endpointsMap:      make(proxy.EndpointsMap),
+		masqueradeAll:     masqueradeAll,
+		masqueradeMark:    masqueradeMark,
+		clusterCIDR:       clusterCIDR,
+		hostname:          hostname,
+		nodeIP:            nodeIP,
 		//recorder:            recorder,
 		//serviceHealthServer: serviceHealthServer,
 		//healthzServer:       healthzServer,
-		hns:                 hns,
-		network:             *hnsNetworkInfo,
-		sourceVip:           sourceVip,
-		hostMac:             hostMac,
-		isDSR:               isDSR,
+		hns:       hns,
+		network:   *hnsNetworkInfo,
+		sourceVip: sourceVip,
+		hostMac:   hostMac,
+		isDSR:     isDSR,
 		//supportedFeatures:   supportedFeatures,
-		isIPv6Mode:          isIPv6,
+		isIPv6Mode: isIPv6,
 	}
 
 	ipFamily := v1.IPv4Protocol
@@ -222,6 +225,7 @@ func (proxier *Proxier) Sync() {
 
 // SyncLoop runs periodic work.  This is expected to run as a goroutine or as the main loop of the app.  It does not return.
 func (proxier *Proxier) SyncLoop() {
+	fmt.Println("background sync")
 	//// Update healthz timestamp at beginning in case Sync() never succeeds.
 	//if proxier.healthzServer != nil {
 	//	proxier.healthzServer.Updated()

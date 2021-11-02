@@ -5,7 +5,6 @@ import (
 	utilproxy "github.com/knabben/kpng-win/pkg/proxy/util"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 	"net"
@@ -137,18 +136,23 @@ type ServiceChangeTracker struct {
 	lock sync.Mutex
 	// items maps a service to its serviceChange.
 	items map[types.NamespacedName]*serviceChange
+
+	// PersistentServices are used to have a persistent track of the services
+	PersistentServices map[types.NamespacedName]*localnetv1.Service
+
 	// makeServiceInfo allows proxier to inject customized information when processing service.
 	makeServiceInfo         makeServicePortFunc
 	processServiceMapChange processServiceMapChangeFunc
 	ipFamily                v1.IPFamily
 
-	recorder events.EventRecorder
+	//recorder events.EventRecorder
 }
 
 // NewServiceChangeTracker initializes a ServiceChangeTracker
 func NewServiceChangeTracker(makeServiceInfo makeServicePortFunc, ipFamily v1.IPFamily,processServiceMapChange processServiceMapChangeFunc) *ServiceChangeTracker {
 	return &ServiceChangeTracker{
 		items:                   make(map[types.NamespacedName]*serviceChange),
+		PersistentServices: 	 make(map[types.NamespacedName]*localnetv1.Service),
 		makeServiceInfo:         makeServiceInfo,
 		//recorder:                recorder,
 		ipFamily:                ipFamily,
@@ -192,6 +196,10 @@ func (sct *ServiceChangeTracker) serviceToServiceMap(service *localnetv1.Service
 	return serviceMap
 }
 
+func (sct *ServiceChangeTracker) GetName(namespace, name string) types.NamespacedName {
+	return types.NamespacedName{Namespace: namespace, Name: name}
+}
+
 // Update updates given service's change map based on the <previous, current> service pair.  It returns true if items changed,
 // otherwise return false.  Update can be used to add/update/delete items of ServiceChangeMap.  For example,
 // Add item
@@ -209,19 +217,20 @@ func (sct *ServiceChangeTracker) Update(previous, current *localnetv1.Service) b
 	if svc == nil {
 		return false
 	}
-	//metrics.ServiceChangesTotal.Inc()
-	namespacedName := types.NamespacedName{Namespace: svc.Namespace, Name: svc.Name}
 
 	sct.lock.Lock()
 	defer sct.lock.Unlock()
 
+	namespacedName := sct.GetName(svc.Namespace, svc.Name)
 	change, exists := sct.items[namespacedName]
 	if !exists {
 		change = &serviceChange{}
 		change.previous = sct.serviceToServiceMap(previous)
 		sct.items[namespacedName] = change
 	}
+	sct.PersistentServices[namespacedName] = svc
 	change.current = sct.serviceToServiceMap(current)
+
 	// if change.previous equal to change.current, it means no change
 	if reflect.DeepEqual(change.previous, change.current) {
 		delete(sct.items, namespacedName)

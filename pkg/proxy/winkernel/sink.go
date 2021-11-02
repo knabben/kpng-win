@@ -78,21 +78,30 @@ func (s *Backend) Sync() {
 	//wg.Wait()
 }
 
-func (s *Backend) SetService(svc *localnetv1.Service) {
-	fmt.Println(svc)
-	//for _, impl := range IptablesImpl {
-	//	impl.serviceChanges.Update(svc)
-	//}
-	//proxier.OnServiceUpdate(nil, service)
+func (s *Backend) SetService(service *localnetv1.Service) {
+	svcChangeTracker := proxier.GetServiceChangeTracker()
+	svcName := svcChangeTracker.GetName(service.Namespace, service.Name)
+
+	oldService, exists := svcChangeTracker.PersistentServices[svcName]
+	if !exists {
+		fmt.Println("Adding service", service)
+		proxier.OnServiceAdd(service)
+		return
+	}
+
+	fmt.Println("Updating service", service)
+	proxier.OnServiceUpdate(oldService, service)
+	fmt.Println(svcChangeTracker)
 }
 
 func (s *Backend) DeleteService(namespace, name string) {
-	fmt.Println(namespace, name)
-	//for _, impl := range IptablesImpl {
-	//	impl.serviceChanges.Delete(namespace, name)
-	//}
-	//proxier.OnServiceUpdate(service, nil)
+	svcChangeTracker := proxier.GetServiceChangeTracker()
+	svcName := svcChangeTracker.GetName(namespace, name)
 
+	service := svcChangeTracker.PersistentServices[svcName]
+	fmt.Println("Deleting service", namespace, name)
+	proxier.OnServiceDelete(service)
+	delete(svcChangeTracker.PersistentServices, svcName)
 }
 
 func (s *Backend) SetEndpoint(namespace, serviceName, key string, endpoint *localnetv1.Endpoint) {
@@ -100,7 +109,6 @@ func (s *Backend) SetEndpoint(namespace, serviceName, key string, endpoint *loca
 	//for _, impl := range IptablesImpl {
 	//	impl.endpointsChanges.EndpointUpdate(namespace, serviceName, key, endpoint)
 	//}
-
 }
 
 func (s *Backend) DeleteEndpoint(namespace, serviceName, key string) {
