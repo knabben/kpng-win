@@ -81,14 +81,12 @@ func (s *Backend) Sync() {
 func (s *Backend) SetService(service *localnetv1.Service) {
 	svcChangeTracker := proxier.GetServiceChangeTracker()
 	svcName := svcChangeTracker.GetName(service.Namespace, service.Name)
-
 	oldService, exists := svcChangeTracker.PersistentServices[svcName]
 	if !exists {
 		fmt.Println("Adding service", service)
 		proxier.OnServiceAdd(service)
 		return
 	}
-
 	fmt.Println("Updating service", service)
 	proxier.OnServiceUpdate(oldService, service)
 	fmt.Println(svcChangeTracker)
@@ -97,7 +95,6 @@ func (s *Backend) SetService(service *localnetv1.Service) {
 func (s *Backend) DeleteService(namespace, name string) {
 	svcChangeTracker := proxier.GetServiceChangeTracker()
 	svcName := svcChangeTracker.GetName(namespace, name)
-
 	service := svcChangeTracker.PersistentServices[svcName]
 	fmt.Println("Deleting service", namespace, name)
 	proxier.OnServiceDelete(service)

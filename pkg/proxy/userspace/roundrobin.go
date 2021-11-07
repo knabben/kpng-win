@@ -3,12 +3,11 @@ package userspace
 import (
 	"errors"
 	"fmt"
+	"sigs.k8s.io/kpng/api/localnetv1"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"net"
-	"sigs.k8s.io/kpng/client"
 	"sync"
 	"time"
 )
@@ -62,33 +61,37 @@ func (lb *LoadBalancerRR) NewService(svcPort ServicePortName, affinityType v1.Se
 	return nil
 }
 
-func (lb *LoadBalancerRR) OnEndpointsAdd(endpoints *client.ServiceEndpoints) {
-	service := endpoints.Service
-	portsToEndpoints := buildPortsToEndpointsMap(endpoints)
-	fmt.Println(portsToEndpoints)
-	lb.lock.Lock()
-	defer lb.lock.Unlock()
+func (lb *LoadBalancerRR) OnEndpointsAdd(endpoint *localnetv1.Endpoint, service *localnetv1.Service) {
+	////service := endpoints.Service
+	//portsToEndpoints := buildPortsToEndpointsMap(endpoint, service)
+	//fmt.Println(portsToEndpoints)
+	//
+	//lb.lock.Lock()
+	//defer lb.lock.Unlock()
+	//
+	//for portname := range portsToEndpoints {
+	//	svcPort := ServicePortName{
+	//		NamespacedName: types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, Port: portname,
+	//	}
+	//	newEndpoints := portsToEndpoints[portname]
+	//	state, exists := lb.services[svcPort]
+	//
+	//	if !exists || state == nil || len(newEndpoints) > 0 {
+	//		fmt.Println("LoadBalancerRR: Setting endpoints service", "servicePortName", svcPort, "endpoints", newEndpoints)
+	//		//lb.updateAffinityMap(svcPort, newEndpoints)
+	//		// OnEndpointsAdd can be called without NewService being called externally.
+	//		// To be safe we will call it here.  A new service will only be created
+	//		// if one does not already exist.  The affinity will be updated
+	//		// later, once NewService is called.
+	//		state = lb.newServiceInternal(svcPort, v1.ServiceAffinity(""), 0)
+	//		state.endpoints = ShuffleStrings(newEndpoints)
+	//		// Reset the round-robin index.
+	//		state.index = 0
+	//	}
+	//}
+}
 
-	for portname := range portsToEndpoints {
-		svcPort := ServicePortName{
-			NamespacedName: types.NamespacedName{Namespace: service.Namespace, Name: service.Name}, Port: portname,
-		}
-		newEndpoints := portsToEndpoints[portname]
-		state, exists := lb.services[svcPort]
-
-		if !exists || state == nil || len(newEndpoints) > 0 {
-			fmt.Println("LoadBalancerRR: Setting endpoints service", "servicePortName", svcPort, "endpoints", newEndpoints)
-			//lb.updateAffinityMap(svcPort, newEndpoints)
-			// OnEndpointsAdd can be called without NewService being called externally.
-			// To be safe we will call it here.  A new service will only be created
-			// if one does not already exist.  The affinity will be updated
-			// later, once NewService is called.
-			state = lb.newServiceInternal(svcPort, v1.ServiceAffinity(""), 0)
-			state.endpoints = ShuffleStrings(newEndpoints)
-			// Reset the round-robin index.
-			state.index = 0
-		}
-	}
+func (lb *LoadBalancerRR) OnEndpointsDelete(endpoint *localnetv1.Endpoint) {
 }
 
 // This assumes that lb.lock is already held.

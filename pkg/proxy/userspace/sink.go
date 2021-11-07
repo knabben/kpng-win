@@ -3,6 +3,7 @@ package userspace
 import (
 	"fmt"
 	"github.com/spf13/pflag"
+	"k8s.io/apimachinery/pkg/types"
 	"log"
 	"sigs.k8s.io/kpng/api/localnetv1"
 
@@ -24,10 +25,60 @@ var proxier = &Proxier{}
 
 type Backend struct {
 	localsink.Config
+
+	// keep tracking of services endpoints object and convert
+	// to internal backend
+	servicesEndpoints map[types.NamespacedName]*ServiceEndpoint
 }
 
+type ServiceEndpoint struct {
+	Service  *localnetv1.Service
+	Endpoint *localnetv1.Endpoint
+}
+
+func (b *Backend) AddService(service *localnetv1.Service) {
+	namespaceNamed := proxier.CreateNamespacedName(service)
+	_, exists := b.servicesEndpoints[namespaceNamed]
+	if !exists {
+		b.servicesEndpoints[namespaceNamed] = &ServiceEndpoint{
+			Service: service,
+			Endpoint: nil,
+		}
+	} else {
+		b.servicesEndpoints[namespaceNamed].Service = service
+	}
+}
+
+func (b *Backend) AddEndpoint(service *localnetv1.Service, endpoint *localnetv1.Endpoint) {
+	namespaceNamed := proxier.CreateNamespacedName(service)
+	serviceEndpoint, exists := b.servicesEndpoints[namespaceNamed]
+	if exists && serviceEndpoint.Endpoint == nil {
+		b.servicesEndpoints[namespaceNamed].Endpoint = endpoint
+	} else if !exists {
+		b.servicesEndpoints[namespaceNamed] = &ServiceEndpoint{
+			Service: service,
+			Endpoint: endpoint,
+		}
+	}
+}
+
+func (b *Backend) GetService(name, namespace string) (*ServiceEndpoint, bool) {
+	// todo - lock
+	namespaceNamed := proxier.CreateNamespacedNameString(name, namespace)
+	oldServiceEndpoint, exists := b.servicesEndpoints[namespaceNamed]
+	return oldServiceEndpoint, exists
+}
+
+func (b *Backend) GetEndpoint(service *localnetv1.Service, endpoint *localnetv1.Endpoint) {
+	namespaceNamed := proxier.CreateNamespacedName(service)
+	b.servicesEndpoints[namespaceNamed].Endpoint = endpoint
+}
+
+
 func NewBackend() *Backend {
-	return &Backend{}
+	return &Backend{
+		servicesEndpoints: make(map[types.NamespacedName]*ServiceEndpoint),
+	}
 }
 
 func (s *Backend) Sink() localsink.Sink {
@@ -50,28 +101,38 @@ func (s *Backend) Reset() { /* noop, we're wrapped in filterreset */ }
 
 func (s *Backend) Sync() {
 	fmt.Println("sync")
-	fmt.Println("cleaning up stale registers")
+	fmt.Println("cleaning up stale registers for affinity impl")
 }
 
 func (s *Backend) SetService(svc *localnetv1.Service) {
-	proxier.OnServiceAdd(svc)
+	if cacheSvcEndpoint, exists := s.GetService(svc.Name, svc.Namespace); exists {
+		proxier.OnServiceUpdate(cacheSvcEndpoint.Service, svc)
+	} else {
+		proxier.OnServiceAdd(svc)
+	}
+	s.AddService(svc)
 }
 
 func (s *Backend) DeleteService(namespace, name string) {
-	fmt.Println(namespace, name)
-	//for _, impl := range IptablesImpl {
-	//	impl.serviceChanges.Delete(namespace, name)
-	//}
+	if oldSvc, exists := s.GetService(name, namespace); exists {
+		proxier.OnServiceDelete(oldSvc.Service)
+		namespacedName := proxier.CreateNamespacedNameString(name, namespace)
+		delete(s.servicesEndpoints, namespacedName)
+	}
 }
 
 func (s *Backend) SetEndpoint(namespace, serviceName, key string, endpoint *localnetv1.Endpoint) {
-	fmt.Println(namespace, serviceName, key, endpoint)
-	//proxier.OnEndpointsAdd(endpoint) - creating base endpoint
+	cacheSvcEndpoint, exists := s.GetService(serviceName, namespace)
+	if !exists || (exists && cacheSvcEndpoint.Endpoint == nil) {
+		proxier.OnEndpointsAdd(endpoint, cacheSvcEndpoint.Service) // - creating base endpoint
+	} else {
+		proxier.OnEndpointsUpdate(cacheSvcEndpoint.Endpoint, endpoint)
+	}
+	s.AddEndpoint(cacheSvcEndpoint.Service, endpoint)
 }
 
 func (s *Backend) DeleteEndpoint(namespace, serviceName, key string) {
-	fmt.Println(namespace, serviceName, key)
-	//for _, impl := range IptablesImpl {
-	//	impl.endpointsChanges.EndpointUpdate(namespace, serviceName, key, nil)
-	//}
+	if cacheSvcEndpoint, exists := s.GetService(serviceName, namespace); exists {
+		proxier.OnEndpointsDelete(cacheSvcEndpoint.Endpoint)
+	}
 }

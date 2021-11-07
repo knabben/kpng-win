@@ -8,7 +8,6 @@ import (
 	"k8s.io/utils/exec"
 	netutils "k8s.io/utils/net"
 	"sigs.k8s.io/kpng/api/localnetv1"
-	"sigs.k8s.io/kpng/client"
 	"strconv"
 	"sync/atomic"
 
@@ -98,33 +97,79 @@ func NewProxier(loadBalancer LoadBalancer, listenIP net.IP, syncPeriod, udpIdleT
 
 func createProxier(loadBalancer LoadBalancer, listenIP net.IP, hostIP net.IP, syncPeriod, udpIdleTimeout time.Duration) (*Proxier, error) {
 	return &Proxier{
-		loadBalancer:   loadBalancer,
-		serviceMap:     make(map[ServicePortPortalName]*serviceInfo),
-		syncPeriod:     syncPeriod,
-		netsh:          New(exec.New()),
-		udpIdleTimeout: udpIdleTimeout,
-		hostIP:         hostIP,
+		loadBalancer:      loadBalancer,
+		serviceMap:        make(map[ServicePortPortalName]*serviceInfo),
+		syncPeriod:        syncPeriod,
+		netsh:             New(exec.New()),
+		udpIdleTimeout:    udpIdleTimeout,
+		hostIP:            hostIP,
 	}, nil
 }
 
 // OnServiceAdd is called whenever creation of new service object
 // is observed.
 func (proxier *Proxier) OnServiceAdd(service *localnetv1.Service) {
-	_ = proxier.mergeService(service)
+	//_ = proxier.mergeService(service)
+	fmt.Println("ADD SERVICE", service)
+}
+
+// OnServiceUpdate is called whenever modification of an existing
+// service object is observed.
+func (proxier *Proxier) OnServiceUpdate(oldService, service *localnetv1.Service) {
+	//existingPortPortals := proxier.mergeService(service)
+	//proxier.unmergeService(oldService, existingPortPortals)
+	fmt.Println("UPDATE SERVICE", oldService, service)
+}
+
+// OnServiceDelete is called whenever deletion of an existing service
+// object is observed.
+func (proxier *Proxier) OnServiceDelete(service *localnetv1.Service) {
+	//proxier.unmergeService(service, map[ServicePortPortalName]bool{})
+	fmt.Println("DELETE SERVICE", service)
 }
 
 // OnEndpointsAdd is called whenever creation of new endpoints object
 // is observed.
-func (proxier *Proxier) OnEndpointsAdd(endpoints *client.ServiceEndpoints) {
-	proxier.loadBalancer.OnEndpointsAdd(endpoints)
+func (proxier *Proxier) OnEndpointsAdd(endpoint *localnetv1.Endpoint, service *localnetv1.Service) {
+	//proxier.loadBalancer.OnEndpointsAdd(endpoint, service)
+	fmt.Println("ADD ENDPOINT", endpoint)
+
+}
+
+// OnEndpointsUpdate is called whenever modification of an existing
+// endpoints object is observed.
+func (proxier *Proxier) OnEndpointsUpdate(oldEndpoints, endpoints *localnetv1.Endpoint) {
+	//proxier.loadBalancer.OnEndpointsUpdate(oldEndpoints, endpoints)
+	fmt.Println("UPDATE ENDPOINT", oldEndpoints, endpoints)
+}
+
+// OnEndpointsDelete is called whenever deletion of an existing endpoints
+// object is observed.
+func (proxier *Proxier) OnEndpointsDelete(endpoints *localnetv1.Endpoint) {
+	//proxier.loadBalancer.OnEndpointsDelete(endpoints)
+	fmt.Println("DELETE ENDPOINT", endpoints)
+}
+
+// OnEndpointsSynced is called once all the initial event handlers were
+// called and the state is fully propagated to local cache.
+func (proxier *Proxier) OnEndpointsSynced() {
+	//proxier.loadBalancer.OnEndpointsSynced()
+}
+
+func (proxier *Proxier) CreateNamespacedName(service *localnetv1.Service) types.NamespacedName {
+	return types.NamespacedName{Namespace: service.Namespace, Name: service.Name}
+}
+
+func (proxier *Proxier) CreateNamespacedNameString(serviceName, namespaceName string) types.NamespacedName {
+	return types.NamespacedName{Namespace: namespaceName, Name: serviceName}
 }
 
 func (proxier *Proxier) mergeService(service *localnetv1.Service) map[ServicePortPortalName]bool {
 	if service == nil {
 		return nil
 	}
-	svcName := types.NamespacedName{Namespace: service.Namespace, Name: service.Name}
-	//if !helper.IsServiceIPSet(service) { // todo: refator fix
+	svcName := proxier.CreateNamespacedName(service)
+	//if !helper.IsServiceIPSet(service) { // todo: refactor fix
 	//	klog.V(3).InfoS("Skipping service due to clusterIP", "svcName", svcName, "ip", service.Spec.ClusterIP)
 	//	return nil
 	//}
@@ -144,7 +189,7 @@ func (proxier *Proxier) mergeService(service *localnetv1.Service) map[ServicePor
 			}
 			existingPortPortals[servicePortPortalName] = true
 			//fmt.Println(proxier.serviceMap, "serviceMap")
-			info, exists := proxier.getServiceInfo(servicePortPortalName)
+			info, exists := proxier.GetServiceInfo(servicePortPortalName)
 			if exists && sameConfig(info, listenPort) { // todo: upgrade later on update
 				// Nothing changed.
 				continue
@@ -170,24 +215,79 @@ func (proxier *Proxier) mergeService(service *localnetv1.Service) map[ServicePor
 			//info.sessionAffinityType = service.Spec.SessionAffinity
 			fmt.Println("record serviceInfo", "info", info)
 		}
-		//if len(listenIPPortMap) > 0 {
-		//	// only one loadbalancer per service port portal
-		//	servicePortName := proxy.ServicePortName{
-		//		NamespacedName: types.NamespacedName{
-		//			Namespace: service.Namespace,
-		//			Name:      service.Name,
-		//		},
-		//		Port: servicePort.Name,
-		//	}
-		//	timeoutSeconds := 0
-		//	//if service.Spec.SessionAffinity == v1.ServiceAffinityClientIP {
-		//	//	timeoutSeconds = int(*service.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds)
-		//	//}
-		//	//proxier.loadBalancer.NewService(servicePortName, service.Spec.SessionAffinity, timeoutSeconds)
-		//}
+		if len(listenIPPortMap) > 0 {
+			// only one loadbalancer per service port portal
+			//servicePortName := ServicePortName{
+			//	NamespacedName: types.NamespacedName{
+			//		Namespace: service.Namespace,
+			//		Name:      service.Name,
+			//	},
+			//	Port: servicePort.Name,
+			//}
+			//timeoutSeconds := 0
+			//if service.Spec.SessionAffinity == v1.ServiceAffinityClientIP {
+			//	timeoutSeconds = int(*service.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds)
+			//}
+			//proxier.loadBalancer.NewService(servicePortName, service.Spec.SessionAffinity, timeoutSeconds)
+		}
 	}
 
 	return existingPortPortals
+}
+
+func (proxier *Proxier) unmergeService(service *localnetv1.Service, existingPortPortals map[ServicePortPortalName]bool) {
+	if service == nil {
+		return
+	}
+	svcName := proxier.CreateNamespacedName(service)
+	fmt.Println(svcName, existingPortPortals)
+	//if !helper.IsServiceIPSet(service) {
+	//	klog.V(3).InfoS("Skipping service due to clusterIP", "svcName", svcName, "ip", service.Spec.ClusterIP)
+	//	return
+	//}
+
+	servicePortNameMap := make(map[ServicePortName]bool)
+	for name := range existingPortPortals {
+		servicePortName := ServicePortName{
+			NamespacedName: proxier.CreateNamespacedName(service),
+			Port:           name.Port,
+		}
+		servicePortNameMap[servicePortName] = true
+	}
+	//
+	//for i := range service.Spec.Ports {
+	//	servicePort := &service.Spec.Ports[i]
+	//	serviceName := proxy.ServicePortName{NamespacedName: svcName, Port: servicePort.Name}
+	//	// create a slice of all the source IPs to use for service port portals
+	//	listenIPPortMap := getListenIPPortMap(service, int(servicePort.Port), int(servicePort.NodePort))
+	//
+	//	for listenIP := range listenIPPortMap {
+	//		servicePortPortalName := ServicePortPortalName{
+	//			NamespacedName: svcName,
+	//			Port:           servicePort.Name,
+	//			PortalIPName:   listenIP,
+	//		}
+	//		if existingPortPortals[servicePortPortalName] {
+	//			continue
+	//		}
+	//
+	//		klog.V(1).InfoS("Stopping service", "servicePortPortalName", servicePortPortalName.String())
+	//		info, exists := proxier.getServiceInfo(servicePortPortalName)
+	//		if !exists {
+	//			klog.ErrorS(nil, "Service is being removed but doesn't exist", "servicePortPortalName", servicePortPortalName.String())
+	//			continue
+	//		}
+	//
+	//		if err := proxier.closeServicePortPortal(servicePortPortalName, info); err != nil {
+	//			klog.ErrorS(err, "Failed to close service port portal", "servicePortPortalName", servicePortPortalName)
+	//		}
+	//	}
+	//
+	//	// Only delete load balancer if all listen ips per name/port show inactive.
+	//	if !servicePortNameMap[serviceName] {
+	//		proxier.loadBalancer.DeleteService(serviceName)
+	//	}
+	//}
 }
 
 func sameConfig(info *serviceInfo, listenPort int32) bool {
@@ -243,7 +343,7 @@ func (proxier *Proxier) addServicePortPortal(servicePortPortalName ServicePortPo
 	return si, nil
 }
 
-func (proxier *Proxier) getServiceInfo(service ServicePortPortalName) (*serviceInfo, bool) {
+func (proxier *Proxier) GetServiceInfo(service ServicePortPortalName) (*serviceInfo, bool) {
 	proxier.mu.Lock()
 	defer proxier.mu.Unlock()
 	info, ok := proxier.serviceMap[service]
