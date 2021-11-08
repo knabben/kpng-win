@@ -8,7 +8,6 @@ import (
 	"k8s.io/klog/v2"
 	"net"
 	"sigs.k8s.io/kpng/api/localnetv1"
-	"sigs.k8s.io/kpng/client"
 	"strconv"
 	"strings"
 	"sync"
@@ -318,19 +317,14 @@ func newProxySocket(protocol localnetv1.Protocol, ip net.IP, port int) (proxySoc
 
 // BuildPortsToEndpointsMap builds a map of portname -> all ip:ports for that
 // portname. Explode Endpoints.Subsets[*] into this structure.
-func buildPortsToEndpointsMap(endpoints *client.ServiceEndpoints) map[string][]string {
+func buildPortsToEndpointsMap(endpoint *localnetv1.Endpoint, service *localnetv1.Service) map[string][]string {
 	portsToEndpoints := map[string][]string{}
-
-	for _, se := range endpoints.Endpoints {
-		for _, ip := range se.IPs.V4 {
-			for _, port := range endpoints.Service.Ports {
-				portsToEndpoints[port.Name] = append(
-					portsToEndpoints[port.Name], net.JoinHostPort(
-						ip,
-						strconv.Itoa(int(port.Port)),
-					),
-				)
-			}
+	ips := endpoint.GetIPs()
+	for _, ip := range ips.V4{
+		for _, port := range service.Ports {
+			portsToEndpoints[port.Name] = append(
+				portsToEndpoints[port.Name], net.JoinHostPort(ip, strconv.Itoa(int(port.Port))),
+			)
 		}
 	}
 	return portsToEndpoints

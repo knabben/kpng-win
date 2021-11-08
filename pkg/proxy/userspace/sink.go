@@ -126,13 +126,13 @@ func (s *Backend) SetEndpoint(namespace, serviceName, key string, endpoint *loca
 	if !exists || (exists && cacheSvcEndpoint.Endpoint == nil) {
 		proxier.OnEndpointsAdd(endpoint, cacheSvcEndpoint.Service) // - creating base endpoint
 	} else {
-		proxier.OnEndpointsUpdate(cacheSvcEndpoint.Endpoint, endpoint)
+		proxier.OnEndpointsUpdate(cacheSvcEndpoint.Endpoint, endpoint, cacheSvcEndpoint.Service)
 	}
 	s.AddEndpoint(cacheSvcEndpoint.Service, endpoint)
 }
 
 func (s *Backend) DeleteEndpoint(namespace, serviceName, key string) {
 	if cacheSvcEndpoint, exists := s.GetService(serviceName, namespace); exists {
-		proxier.OnEndpointsDelete(cacheSvcEndpoint.Endpoint)
+		proxier.OnEndpointsDelete(cacheSvcEndpoint.Endpoint, cacheSvcEndpoint.Service)
 	}
 }

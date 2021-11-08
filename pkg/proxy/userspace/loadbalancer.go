@@ -12,8 +12,9 @@ type LoadBalancer interface {
 	//// service-port and source address.
 	NextEndpoint(service ServicePortName, srcAddr net.Addr, sessionAffinityReset bool) (string, error)
 	NewService(service ServicePortName, sessionAffinityType v1.ServiceAffinity, stickyMaxAgeMinutes int) error
-	OnEndpointsAdd(endpoints *localnetv1.Endpoint, service *localnetv1.Service)
-	OnEndpointsDelete(endpoints *localnetv1.Endpoint)
+	OnEndpointsAdd(endpoint *localnetv1.Endpoint, service *localnetv1.Service)
+	OnEndpointsDelete(endpoint *localnetv1.Endpoint, service *localnetv1.Service)
+	OnEndpointsUpdate(oldEndpoints, endpoints *localnetv1.Endpoint, service *localnetv1.Service)
 	//DeleteService(service ServicePortName)
 	//CleanupStaleStickySessions(service ServicePortName)
 

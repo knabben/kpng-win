@@ -109,45 +109,44 @@ func createProxier(loadBalancer LoadBalancer, listenIP net.IP, hostIP net.IP, sy
 // OnServiceAdd is called whenever creation of new service object
 // is observed.
 func (proxier *Proxier) OnServiceAdd(service *localnetv1.Service) {
-	//_ = proxier.mergeService(service)
 	fmt.Println("ADD SERVICE", service)
+	_ = proxier.mergeService(service)
 }
 
 // OnServiceUpdate is called whenever modification of an existing
 // service object is observed.
 func (proxier *Proxier) OnServiceUpdate(oldService, service *localnetv1.Service) {
-	//existingPortPortals := proxier.mergeService(service)
-	//proxier.unmergeService(oldService, existingPortPortals)
 	fmt.Println("UPDATE SERVICE", oldService, service)
+	existingPortPortals := proxier.mergeService(service)
+	proxier.unmergeService(oldService, existingPortPortals)
 }
 
 // OnServiceDelete is called whenever deletion of an existing service
 // object is observed.
 func (proxier *Proxier) OnServiceDelete(service *localnetv1.Service) {
-	//proxier.unmergeService(service, map[ServicePortPortalName]bool{})
 	fmt.Println("DELETE SERVICE", service)
+	proxier.unmergeService(service, map[ServicePortPortalName]bool{})
 }
 
 // OnEndpointsAdd is called whenever creation of new endpoints object
 // is observed.
 func (proxier *Proxier) OnEndpointsAdd(endpoint *localnetv1.Endpoint, service *localnetv1.Service) {
-	//proxier.loadBalancer.OnEndpointsAdd(endpoint, service)
 	fmt.Println("ADD ENDPOINT", endpoint)
-
+	proxier.loadBalancer.OnEndpointsAdd(endpoint, service)
 }
 
 // OnEndpointsUpdate is called whenever modification of an existing
 // endpoints object is observed.
-func (proxier *Proxier) OnEndpointsUpdate(oldEndpoints, endpoints *localnetv1.Endpoint) {
-	//proxier.loadBalancer.OnEndpointsUpdate(oldEndpoints, endpoints)
+func (proxier *Proxier) OnEndpointsUpdate(oldEndpoints, endpoints *localnetv1.Endpoint, service *localnetv1.Service) {
 	fmt.Println("UPDATE ENDPOINT", oldEndpoints, endpoints)
+	proxier.loadBalancer.OnEndpointsUpdate(oldEndpoints, endpoints, service)
 }
 
 // OnEndpointsDelete is called whenever deletion of an existing endpoints
 // object is observed.
-func (proxier *Proxier) OnEndpointsDelete(endpoints *localnetv1.Endpoint) {
-	//proxier.loadBalancer.OnEndpointsDelete(endpoints)
-	fmt.Println("DELETE ENDPOINT", endpoints)
+func (proxier *Proxier) OnEndpointsDelete(endpoint *localnetv1.Endpoint, service *localnetv1.Service) {
+	fmt.Println("DELETE ENDPOINT", endpoint)
+	proxier.loadBalancer.OnEndpointsDelete(endpoint, service)
 }
 
 // OnEndpointsSynced is called once all the initial event handlers were
