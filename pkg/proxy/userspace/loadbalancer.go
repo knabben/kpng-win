@@ -15,7 +15,7 @@ type LoadBalancer interface {
 	OnEndpointsAdd(endpoint *localnetv1.Endpoint, service *localnetv1.Service)
 	OnEndpointsDelete(endpoint *localnetv1.Endpoint, service *localnetv1.Service)
 	OnEndpointsUpdate(oldEndpoints, endpoints *localnetv1.Endpoint, service *localnetv1.Service)
-	//DeleteService(service ServicePortName)
+	DeleteService(service ServicePortName)
 	//CleanupStaleStickySessions(service ServicePortName)
 
 	//proxyconfig.EndpointsHandler

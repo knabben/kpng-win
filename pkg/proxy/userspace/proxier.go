@@ -59,6 +59,14 @@ func (info *serviceInfo) isAlive() bool {
 	return atomic.LoadInt32(&info.isAliveAtomic) != 0
 }
 
+func (info *serviceInfo) setAlive(b bool) {
+	var i int32
+	if b {
+		i = 1
+	}
+	atomic.StoreInt32(&info.isAliveAtomic, i)
+}
+
 // Proxier is a simple proxy for TCP connections between a localhost:lport
 // and services that provide the actual implementations.
 type Proxier struct {
@@ -215,19 +223,20 @@ func (proxier *Proxier) mergeService(service *localnetv1.Service) map[ServicePor
 			fmt.Println("record serviceInfo", "info", info)
 		}
 		if len(listenIPPortMap) > 0 {
-			// only one loadbalancer per service port portal
-			//servicePortName := ServicePortName{
-			//	NamespacedName: types.NamespacedName{
-			//		Namespace: service.Namespace,
-			//		Name:      service.Name,
-			//	},
-			//	Port: servicePort.Name,
-			//}
-			//timeoutSeconds := 0
+			//only one loadbalancer per service port portal
+			servicePortName := ServicePortName{
+				NamespacedName: types.NamespacedName{
+					Namespace: service.Namespace,
+					Name:      service.Name,
+				},
+				Port: servicePort.Name,
+			}
+			timeoutSeconds := 0
+			//
 			//if service.Spec.SessionAffinity == v1.ServiceAffinityClientIP {
 			//	timeoutSeconds = int(*service.Spec.SessionAffinityConfig.ClientIP.TimeoutSeconds)
 			//}
-			//proxier.loadBalancer.NewService(servicePortName, service.Spec.SessionAffinity, timeoutSeconds)
+			proxier.loadBalancer.NewService(servicePortName, v1.ServiceAffinityNone, timeoutSeconds)
 		}
 	}
 
@@ -254,39 +263,39 @@ func (proxier *Proxier) unmergeService(service *localnetv1.Service, existingPort
 		servicePortNameMap[servicePortName] = true
 	}
 	//
-	//for i := range service.Spec.Ports {
-	//	servicePort := &service.Spec.Ports[i]
-	//	serviceName := proxy.ServicePortName{NamespacedName: svcName, Port: servicePort.Name}
-	//	// create a slice of all the source IPs to use for service port portals
-	//	listenIPPortMap := getListenIPPortMap(service, int(servicePort.Port), int(servicePort.NodePort))
-	//
-	//	for listenIP := range listenIPPortMap {
-	//		servicePortPortalName := ServicePortPortalName{
-	//			NamespacedName: svcName,
-	//			Port:           servicePort.Name,
-	//			PortalIPName:   listenIP,
-	//		}
-	//		if existingPortPortals[servicePortPortalName] {
-	//			continue
-	//		}
-	//
-	//		klog.V(1).InfoS("Stopping service", "servicePortPortalName", servicePortPortalName.String())
-	//		info, exists := proxier.getServiceInfo(servicePortPortalName)
-	//		if !exists {
-	//			klog.ErrorS(nil, "Service is being removed but doesn't exist", "servicePortPortalName", servicePortPortalName.String())
-	//			continue
-	//		}
-	//
-	//		if err := proxier.closeServicePortPortal(servicePortPortalName, info); err != nil {
-	//			klog.ErrorS(err, "Failed to close service port portal", "servicePortPortalName", servicePortPortalName)
-	//		}
-	//	}
-	//
-	//	// Only delete load balancer if all listen ips per name/port show inactive.
-	//	if !servicePortNameMap[serviceName] {
-	//		proxier.loadBalancer.DeleteService(serviceName)
-	//	}
-	//}
+	for i := range service.Ports {
+		servicePort := *service.Ports[i]
+		serviceName := ServicePortName{NamespacedName: svcName, Port: servicePort.Name}
+		// create a slice of all the source IPs to use for service port portals
+		listenIPPortMap := getListenIPPortMap(service, servicePort.Port, servicePort.NodePort)
+
+		for listenIP := range listenIPPortMap {
+			servicePortPortalName := ServicePortPortalName{
+				NamespacedName: svcName,
+				Port:           servicePort.Name,
+				PortalIPName:   listenIP,
+			}
+			if existingPortPortals[servicePortPortalName] {
+				continue
+			}
+
+			klog.V(1).InfoS("Stopping service", "servicePortPortalName", servicePortPortalName.String())
+			info, exists := proxier.GetServiceInfo(servicePortPortalName)
+			if !exists {
+				klog.ErrorS(nil, "Service is being removed but doesn't exist", "servicePortPortalName", servicePortPortalName.String())
+				continue
+			}
+
+			if err := proxier.closeServicePortPortal(servicePortPortalName, info); err != nil {
+				klog.ErrorS(err, "Failed to close service port portal", "servicePortPortalName", servicePortPortalName)
+			}
+		}
+
+		// Only delete load balancer if all listen ips per name/port show inactive.
+		if !servicePortNameMap[serviceName] {
+			proxier.loadBalancer.DeleteService(serviceName)
+		}
+	}
 }
 
 func sameConfig(info *serviceInfo, listenPort int32) bool {
@@ -342,6 +351,38 @@ func (proxier *Proxier) addServicePortPortal(servicePortPortalName ServicePortPo
 	return si, nil
 }
 
+func (proxier *Proxier) closeServicePortPortal(servicePortPortalName ServicePortPortalName, info *serviceInfo) error {
+	// turn off the proxy
+	if err := proxier.stopProxy(servicePortPortalName, info); err != nil {
+		return err
+	}
+
+	// close the PortalProxy by deleting the service IP address
+	if info.portal.ip != allAvailableInterfaces {
+		serviceIP := netutils.ParseIPSloppy(info.portal.ip)
+		args := proxier.netshIPv4AddressDeleteArgs(serviceIP)
+		if err := proxier.netsh.DeleteIPAddress(args); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// This assumes proxier.mu is not locked.
+func (proxier *Proxier) stopProxy(service ServicePortPortalName, info *serviceInfo) error {
+	proxier.mu.Lock()
+	defer proxier.mu.Unlock()
+	return proxier.stopProxyInternal(service, info)
+}
+
+// This assumes proxier.mu is locked.
+func (proxier *Proxier) stopProxyInternal(service ServicePortPortalName, info *serviceInfo) error {
+	delete(proxier.serviceMap, service)
+	info.setAlive(false)
+	err := info.socket.Close()
+	return err
+}
+
 func (proxier *Proxier) GetServiceInfo(service ServicePortPortalName) (*serviceInfo, bool) {
 	proxier.mu.Lock()
 	defer proxier.mu.Unlock()
@@ -359,6 +400,17 @@ func (proxier *Proxier) netshIPv4AddressAddArgs(destIP net.IP) []string {
 	intName := proxier.netsh.GetInterfaceToAddIP()
 	args := []string{
 		"interface", "ipv4", "add", "address",
+		"name=" + intName,
+		"address=" + destIP.String(),
+	}
+
+	return args
+}
+
+func (proxier *Proxier) netshIPv4AddressDeleteArgs(destIP net.IP) []string {
+	intName := proxier.netsh.GetInterfaceToAddIP()
+	args := []string{
+		"interface", "ipv4", "delete", "address",
 		"name=" + intName,
 		"address=" + destIP.String(),
 	}

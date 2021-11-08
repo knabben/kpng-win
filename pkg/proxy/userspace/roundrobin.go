@@ -188,6 +188,13 @@ func (lb *LoadBalancerRR) newServiceInternal(svcPort ServicePortName, affinityTy
 	return lb.services[svcPort]
 }
 
+func (lb *LoadBalancerRR) DeleteService(svcPort ServicePortName) {
+	fmt.Println("LoadBalancerRR DeleteService", "servicePortName", svcPort)
+	lb.lock.Lock()
+	defer lb.lock.Unlock()
+	delete(lb.services, svcPort)
+}
+
 // ShuffleStrings copies strings from the specified slice into a copy in random
 // order. It returns a new slice.
 func ShuffleStrings(s []string) []string {
