@@ -266,3 +266,22 @@ func (lb *LoadBalancerRR) NextEndpoint(svcPort ServicePortName, srcAddr net.Addr
 
 	return endpoint, nil
 }
+
+func (lb *LoadBalancerRR) OnEndpointsSynced() {
+}
+
+func (lb *LoadBalancerRR) CleanupStaleStickySessions(svcPort ServicePortName) {
+	lb.lock.Lock()
+	defer lb.lock.Unlock()
+
+	state, exists := lb.services[svcPort]
+	if !exists {
+		return
+	}
+	for ip, affinity := range state.affinity.affinityMap {
+		if int(time.Since(affinity.lastUsed).Seconds()) >= state.affinity.ttlSeconds {
+			fmt.Println("Removing client from affinityMap for service", "IP", affinity.clientIP, "servicePortName", svcPort)
+			delete(state.affinity.affinityMap, ip)
+		}
+	}
+}

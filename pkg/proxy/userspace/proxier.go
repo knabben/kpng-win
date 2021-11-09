@@ -19,6 +19,12 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 )
 
+type portal struct {
+	ip         string
+	port       int32
+	isExternal bool
+}
+
 // ServicePortName carries a namespace + name + portname.  This is the unique
 // identifier for a load-balanced service.
 type ServicePortName struct {
@@ -37,12 +43,6 @@ type ServicePortPortalName struct {
 
 func (spn ServicePortPortalName) String() string {
 	return fmt.Sprintf("%s:%s:%s", spn.NamespacedName.String(), spn.Port, spn.PortalIPName)
-}
-
-type portal struct {
-	ip         string
-	port       int32
-	isExternal bool
 }
 
 type serviceInfo struct {
@@ -114,6 +114,27 @@ func createProxier(loadBalancer LoadBalancer, listenIP net.IP, hostIP net.IP, sy
 	}, nil
 }
 
+// cleanupStaleStickySessions cleans up any stale sticky session records in the hash map.
+func (proxier *Proxier) cleanupStaleStickySessions() {
+	proxier.mu.Lock()
+	defer proxier.mu.Unlock()
+	servicePortNameMap := make(map[ServicePortName]bool)
+	for name := range proxier.serviceMap {
+		servicePortName := ServicePortName{
+			NamespacedName: types.NamespacedName{
+				Namespace: name.Namespace,
+				Name:      name.Name,
+			},
+			Port: name.Port,
+		}
+		if !servicePortNameMap[servicePortName] {
+			// ensure cleanup sticky sessions only gets called once per serviceportname
+			servicePortNameMap[servicePortName] = true
+			proxier.loadBalancer.CleanupStaleStickySessions(servicePortName)
+		}
+	}
+}
+
 // OnServiceAdd is called whenever creation of new service object
 // is observed.
 func (proxier *Proxier) OnServiceAdd(service *localnetv1.Service) {
@@ -160,7 +181,7 @@ func (proxier *Proxier) OnEndpointsDelete(endpoint *localnetv1.Endpoint, service
 // OnEndpointsSynced is called once all the initial event handlers were
 // called and the state is fully propagated to local cache.
 func (proxier *Proxier) OnEndpointsSynced() {
-	//proxier.loadBalancer.OnEndpointsSynced()
+	proxier.loadBalancer.OnEndpointsSynced()
 }
 
 func (proxier *Proxier) CreateNamespacedName(service *localnetv1.Service) types.NamespacedName {
